@@ -1,4 +1,4 @@
-name: Release
+name: Release • Tools
 
 on:
   push:
@@ -17,6 +17,10 @@ on:
         type: string
 
 permissions: {}
+
+defaults:
+  run:
+    working-directory: tools
 
 jobs:
   prep:
@@ -82,9 +86,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: tools
     outputs:
       release_body: ${{ steps.git-cliff.outputs.content }}
     steps:
@@ -108,9 +109,6 @@ jobs:
       contents: read
       attestations: write
       id-token: write
-    defaults:
-      run:
-        working-directory: tools
     strategy:
       fail-fast: false
       matrix:
