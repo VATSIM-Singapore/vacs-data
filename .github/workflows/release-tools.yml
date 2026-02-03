@@ -76,11 +76,18 @@ jobs:
             PRERELEASE=false
           fi
 
+          EXT=""
+          if [[ "${{ matrix.platform }}" == *"windows"* ]]; then
+            EXT=".exe"
+          fi
+
           echo "version=$VER"       >> "$GITHUB_OUTPUT"
           echo "tag=$TAG"           >> "$GITHUB_OUTPUT"
           echo "draft=$DRAFT"       >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "release_name=$REL_NAME" >> "$GITHUB_OUTPUT"
+          echo "binary_name=vacs-data$EXT" >> "$GITHUB_OUTPUT"
+          echo "release_binary_name=vacs-data-${{ matrix.platform }}$EXT" >> "$GITHUB_OUTPUT"
 
   generate-changelog:
     runs-on: ubuntu-latest
@@ -102,6 +109,7 @@ jobs:
           args: -vv --latest --no-exec --github-repo ${{ github.repository }}
 
   build:
+    needs: [prep]
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     permissions:
@@ -115,15 +123,12 @@ jobs:
           - os: ubuntu-latest
             platform: linux-x86_64
             target: x86_64-unknown-linux-gnu
-            binary_name: vacs-data
           - os: windows-latest
             platform: windows-x86_64
             target: x86_64-pc-windows-msvc
-            binary_name: vacs-data.exe
           - os: macos-latest
             platform: macos-aarch64
             target: aarch64-apple-darwin
-            binary_name: vacs-data
 
     steps:
       - name: Checkout
@@ -141,9 +146,14 @@ jobs:
         uses: Swatinem/rust-cache@v2.8.2
         with:
           shared-key: ${{ matrix.platform }}
+          workspaces: "tools -> target"
 
       - name: Build binary
         run: cargo build --release --locked --bin vacs-data --target ${{ matrix.target }}
+
+      - name: Rename
+        run: |
+          mv "target/${{ matrix.target }}/release/${{ needs.prep.outputs.binary_name }}" "target/${{ matrix.target }}/release/${{ needs.prep.outputs.release_binary_name }}"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v6.0.0
@@ -152,14 +162,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           path: |
-            tools/target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+            tools/target/${{ matrix.target }}/release/${{ needs.prep.outputs.release_binary_name }}
 
       - name: Attest build provenance
         if: ${{ !github.event.repository.private || github.event.repository.owner.type == 'Organization' }}
         uses: actions/attest-build-provenance@v3.2.0
         with:
           subject-path: |
-            tools/target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+            tools/target/${{ matrix.target }}/release/${{ needs.prep.outputs.release_binary_name }}
 
   release:
     needs: [prep, generate-changelog, build]

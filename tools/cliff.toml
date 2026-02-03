@@ -4,52 +4,46 @@ repo = "vacs-data"
 
 [changelog]
 body = """
-{%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
-{%- endmacro -%}
+## What's Changed
 
-{% macro print_commit(commit) -%}
-    - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
-        {% if commit.breaking %}[**breaking**] {% endif %}\
-        {{ commit.message | upper_first }} - \
-        ([{{ commit.id | truncate(length=7, end="") }}]({{ self::remote_url() }}/commit/{{ commit.id }}))\
-{% endmacro -%}
+{%- if version %} in {{ version | trim_start_matches(pat="vacs-data-v") }}{%- endif -%}
+{% for commit in commits %}
+  {% if commit.remote.pr_title -%}
+    {%- set commit_message = commit.remote.pr_title -%}
+  {%- else -%}
+    {%- set commit_message = commit.message -%}
+  {%- endif -%}
+  * {{ commit_message | split(pat="\n") | first | trim }}\
+    {% if commit.remote.username %} by @{{ commit.remote.username }}{%- endif -%}
+    {% if commit.remote.pr_number %} in \
+      [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }}) \
+    {%- endif %}
+{%- endfor -%}
 
-{% if version %}\
-    {% if previous.version %}\
-        ## [{{ version | trim_start_matches(pat="vacs-data-v") }}]\
-          ({{ self::remote_url() }}/compare/{{ previous.version }}..{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
-    {% else %}\
-        ## [{{ version | trim_start_matches(pat="vacs-data-v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
-    {% endif %}\
-{% else %}\
-    ## [unreleased]
-{% endif %}\
-
-{% for group, commits in commits | group_by(attribute="group") %}
-    ### {{ group | striptags | trim | upper_first }}
-    {% for commit in commits
-    | filter(attribute="scope")
-    | sort(attribute="scope") %}
-        {{ self::print_commit(commit=commit) }}
-    {%- endfor %}
-    {% for commit in commits %}
-        {%- if not commit.scope -%}
-            {{ self::print_commit(commit=commit) }}
-        {% endif -%}
-    {% endfor -%}
-{% endfor -%}
 {%- if github -%}
 {% if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
+  {% raw %}\n{% endraw -%}
   ### New Contributors
-{% endif %}\
+{%- endif %}\
 {% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
   * @{{ contributor.username }} made their first contribution
     {%- if contributor.pr_number %} in \
       [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}) \
     {%- endif %}
 {%- endfor -%}
-{%- endif %}
+{%- endif -%}
+
+{% if version %}
+    {% if previous.version %}
+      **Full Changelog**: {{ self::remote_url() }}/compare/{{ previous.version }}...{{ version }}
+    {% endif %}
+{% else -%}
+  {% raw %}\n{% endraw %}
+{% endif %}
+
+{%- macro remote_url() -%}
+  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+{%- endmacro -%}
 
 """
 post_processors = [
@@ -77,6 +71,4 @@ tag_pattern = "vacs-data-v[0-9].*"
 commit_preprocessors = [
   { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](<REPO>/issues/${2}))" },
 ]
-include_paths = [
-  "tools/"
-]
+include_paths = ["tools/"]
